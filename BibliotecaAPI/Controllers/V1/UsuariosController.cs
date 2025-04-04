@@ -1,4 +1,6 @@
-﻿using AutoMapper;
+﻿
+
+using AutoMapper;
 using BibliotecaAPI.Datos;
 using BibliotecaAPI.DTOs;
 using BibliotecaAPI.Entidades;
@@ -16,7 +18,7 @@ namespace BibliotecaAPI.Controllers.V1
 {
     [ApiController]
     [Route("api/v1/usuarios")]
-    public class UsuariosController: ControllerBase
+    public class UsuariosController : ControllerBase
     {
         private readonly UserManager<Usuario> userManager;
         private readonly IConfiguration configuration;
@@ -24,10 +26,11 @@ namespace BibliotecaAPI.Controllers.V1
         private readonly IServiciosUsuarios serviciosUsuarios;
         private readonly ApplicationDbContext context;
         private readonly IMapper mapper;
+        private readonly IServicioLlaves servicioLlaves;
 
         public UsuariosController(UserManager<Usuario> userManager, IConfiguration configuration,
             SignInManager<Usuario> signInManager, IServiciosUsuarios serviciosUsuarios,
-            ApplicationDbContext context, IMapper mapper)
+            ApplicationDbContext context, IMapper mapper, IServicioLlaves servicioLlaves)
         {
             this.userManager = userManager;
             this.configuration = configuration;
@@ -35,6 +38,7 @@ namespace BibliotecaAPI.Controllers.V1
             this.serviciosUsuarios = serviciosUsuarios;
             this.context = context;
             this.mapper = mapper;
+            this.servicioLlaves = servicioLlaves;
         }
 
         [HttpGet(Name = "ObtenerUsuariosV1")]
@@ -60,7 +64,8 @@ namespace BibliotecaAPI.Controllers.V1
 
             if (resultado.Succeeded)
             {
-                var respuestaAutenticacion = await ConstruirToken(credencialesUsuarioDTO);
+                var respuestaAutenticacion = await ConstruirToken(credencialesUsuarioDTO, usuario.Id);
+                await servicioLlaves.CrearLlave(usuario.Id, TipoLlave.Gratuita);
                 return respuestaAutenticacion;
             }
             else
@@ -77,7 +82,7 @@ namespace BibliotecaAPI.Controllers.V1
         [HttpPost("login", Name = "LoginUsuarioV1")]
         public async Task<ActionResult<RespuestaAutenticacionDTO>> Login(
             CredencialesUsuarioDTO credencialesUsuarioDTO)
-        { 
+        {
             var usuario = await userManager.FindByEmailAsync(credencialesUsuarioDTO.Email);
 
             if (usuario is null)
@@ -90,7 +95,7 @@ namespace BibliotecaAPI.Controllers.V1
 
             if (resultado.Succeeded)
             {
-                return await ConstruirToken(credencialesUsuarioDTO);
+                return await ConstruirToken(credencialesUsuarioDTO, usuario.Id);
             }
             else
             {
@@ -113,7 +118,7 @@ namespace BibliotecaAPI.Controllers.V1
 
             await userManager.UpdateAsync(usuario);
             return NoContent();
-        } 
+        }
 
         [HttpGet("renovar-token", Name = "RenovarTokenV1")]
         [Authorize]
@@ -128,7 +133,7 @@ namespace BibliotecaAPI.Controllers.V1
 
             var credencialesUsuarioDTO = new CredencialesUsuarioDTO { Email = usuario.Email! };
 
-            var respuestaAutenticacion = await ConstruirToken(credencialesUsuarioDTO);
+            var respuestaAutenticacion = await ConstruirToken(credencialesUsuarioDTO, usuario.Id);
             return respuestaAutenticacion;
         }
 
@@ -169,12 +174,13 @@ namespace BibliotecaAPI.Controllers.V1
         }
 
         private async Task<RespuestaAutenticacionDTO> ConstruirToken(
-            CredencialesUsuarioDTO credencialesUsuarioDTO)
+            CredencialesUsuarioDTO credencialesUsuarioDTO, string usuarioId)
         {
             var claims = new List<Claim>
             {
                 new Claim("email", credencialesUsuarioDTO.Email),
-                new Claim("lo que yo quiera", "cualquier valor")
+                new Claim("lo que yo quiera", "cualquier valor"),
+                new Claim("usuarioid", usuarioId)
             };
 
             var usuario = await userManager.FindByEmailAsync(credencialesUsuarioDTO.Email);
