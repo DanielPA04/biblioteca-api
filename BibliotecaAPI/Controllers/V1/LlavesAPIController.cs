@@ -2,6 +2,7 @@
 using BibliotecaAPI.Datos;
 using BibliotecaAPI.DTOs;
 using BibliotecaAPI.Servicios;
+using BibliotecaAPI.Utilidades;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace BibliotecaAPI.Controllers.V1
     [Route("api/v1/llavesapi")]
     [Authorize]
     [ApiController]
+    [DeshabilitarLimitarPeticiones]
     public class LlavesAPIController : ControllerBase
     {
         private readonly ApplicationDbContext context;
@@ -32,6 +34,8 @@ namespace BibliotecaAPI.Controllers.V1
             var usuarioId = serviciosUsuarios.ObtenerUsuarioId();
 
             var llaves = await context.LlavesAPI
+                .Include(x => x.RestriccionesDominio)
+                .Include(x => x.RestriccionesIP)
                 .Where(x => x.UsuarioId == usuarioId)
                 .ToListAsync();
             return mapper.Map<IEnumerable<LlaveDTO>>(llaves);
